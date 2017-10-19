@@ -111,12 +111,11 @@ public final class RMSMappingQuality extends InfoFieldAnnotation implements Stan
         ReducibleAnnotationData myData = new ReducibleAnnotationData(rawMQdata);
         parseRawDataString(myData);
 
-        String annotationString = makeFinalizedAnnotationString(vc, myData.getAttributeMap());
+        String annotationString = makeFinalizedAnnotationString(getNumOfReads(vc), myData.getAttributeMap());
         return Collections.singletonMap(getKeyNames().get(0), (Object)annotationString);
     }
 
-    public String makeFinalizedAnnotationString(final VariantContext vc, final Map<Allele, Number> perAlleleData) {
-        int numOfReads = getNumOfReads(vc);
+    public String makeFinalizedAnnotationString(final int numOfReads, final Map<Allele, Number> perAlleleData) {
         return String.format("%.2f", Math.sqrt((double)perAlleleData.get(Allele.NO_CALL)/numOfReads));
     }
 
@@ -147,7 +146,16 @@ public final class RMSMappingQuality extends InfoFieldAnnotation implements Stan
     public Map<String, Object> annotate(final ReferenceContext ref,
                                         final VariantContext vc,
                                         final ReadLikelihoods<Allele> likelihoods) {
-        return annotateRawData(ref, vc, likelihoods);
+        if (likelihoods == null || likelihoods.readCount() < 1 ) {
+            return new HashMap<>();
+        }
+
+        final Map<String, Object> annotations = new HashMap<>();
+        final ReducibleAnnotationData<Number> myData = new ReducibleAnnotationData<>(null);
+        calculateRawData(vc, likelihoods, myData);
+        final String annotationString = makeFinalizedAnnotationString(getNumOfReads(vc, likelihoods), myData.getAttributeMap());
+        annotations.put(getKeyNames().get(0), annotationString);
+        return annotations;
     }
 
     @VisibleForTesting

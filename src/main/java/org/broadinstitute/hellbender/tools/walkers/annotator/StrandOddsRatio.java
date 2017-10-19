@@ -6,6 +6,7 @@ import htsjdk.variant.variantcontext.GenotypesContext;
 import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.vcf.VCFInfoHeaderLine;
 import org.broadinstitute.hellbender.utils.genotyper.ReadLikelihoods;
+import org.broadinstitute.hellbender.utils.pileup.PileupElement;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFHeaderLines;
 
@@ -63,6 +64,15 @@ public final class StrandOddsRatio extends StrandBiasTest implements StandardAnn
         final int[][] tableFromPerSampleAnnotations = getTableFromSamples(genotypes, MIN_COUNT);
         return tableFromPerSampleAnnotations != null ? annotationForOneTable(calculateSOR(tableFromPerSampleAnnotations)) : null;
     }
+
+    @Override
+    protected Map<String, Object> calculateAnnotationFromStratifiedContexts(Map<String, List<PileupElement>> stratifiedContexts,
+                                                                            final VariantContext vc){
+        final int[][] tableNoFiltering = getSNPContingencyTable(stratifiedContexts, vc.getReference(), vc.getAlternateAlleles(), -1, MIN_COUNT);
+        final double ratio = calculateSOR(tableNoFiltering);
+        return annotationForOneTable(ratio);
+    }
+
 
     @Override
     protected Map<String, Object> calculateAnnotationFromLikelihoods(final ReadLikelihoods<Allele> likelihoods, final VariantContext vc){
