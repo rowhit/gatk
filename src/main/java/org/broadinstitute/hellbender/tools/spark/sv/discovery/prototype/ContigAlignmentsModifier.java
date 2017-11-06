@@ -23,30 +23,25 @@ public final class ContigAlignmentsModifier {
     /**
      * Removes overlap between input {@code contig}'s two alignments.
      * If the two alignment intervals are NOT overlapping, return the original aligned contig.
+     * @param dictionary if null, then {@code one} and {@code two} must be mapped to the same chromosome
      */
     public static List<AlignmentInterval> removeOverlap(final AlignmentInterval one, final AlignmentInterval two,
                                                         final SAMSequenceDictionary dictionary) {
+        if (dictionary == null)
+            Utils.validateArg(one.referenceSpan.getContig().equals(two.referenceSpan.getContig()),
+                    "despite input alignments mapped to different chromosomes, input reference sequence dictionary is null. \n" +
+                            one.toPackedString() + "\t" + two.toPackedString());
 
         final AlignmentInterval reconstructedOne, reconstructedTwo;
         final int overlapOnRead = AlignmentInterval.overlapOnContig(one, two);
+        Utils.validateArg(overlapOnRead < Math.min(one.getSpanOnRead(), two.getSpanOnRead()),
+                "two input alignments' overlap on read consumes completely one of them.\t"
+                        + one.toPackedString() + "\t" + two.toPackedString());
         if (overlapOnRead == 0) {
             reconstructedOne = one;
             reconstructedTwo = two;
         } else {
-            final boolean oneYieldToTwo;
-            if (one.referenceSpan.getContig().equals(two.referenceSpan.getContig())) {
-                if (one.forwardStrand != two.forwardStrand) { // so that the inverted duplicated reference span is minimal.
-                    // jumpStart is for "the starting reference location of a jump that linked two alignment intervals", and
-                    // jumpLandingRefLoc is for "that jump's landing reference location"
-                    final int jumpStartRefLoc = one.referenceSpan.getEnd(),
-                            jumpLandingRefLoc = two.referenceSpan.getStart();
-                    oneYieldToTwo = jumpStartRefLoc <= jumpLandingRefLoc == one.forwardStrand;
-                } else {
-                    oneYieldToTwo = one.forwardStrand;
-                }
-            } else {
-                oneYieldToTwo = IntervalUtils.compareContigs(one.referenceSpan, two.referenceSpan, dictionary) > 0;
-            }
+            final boolean oneYieldToTwo = homologyYieldingStrategy(one, two, dictionary);
 
             if (oneYieldToTwo) {
                 reconstructedOne = clipAlignmentInterval(one, overlapOnRead, true);
@@ -58,6 +53,30 @@ public final class ContigAlignmentsModifier {
 
         }
         return Arrays.asList(reconstructedOne, reconstructedTwo);
+    }
+
+    /**
+     * Implementing homology-yielding strategy between two alignments {@code one} and {@code two}.
+     *
+     * @return true if {@code one} should yield the homologous sequence to {@code two}.
+     */
+    static boolean homologyYieldingStrategy(final AlignmentInterval one, final AlignmentInterval two,
+                                            final SAMSequenceDictionary dictionary) {
+        final boolean oneYieldToTwo;
+        if (one.referenceSpan.getContig().equals(two.referenceSpan.getContig())) {
+            if (one.forwardStrand != two.forwardStrand) { // so that the inverted duplicated reference span is minimal.
+                // jumpStart is for "the starting reference location of a jump that linked two alignment intervals", and
+                // jumpLandingRefLoc is for "that jump's landing reference location"
+                final int jumpStartRefLoc = one.referenceSpan.getEnd(),
+                          jumpLandingRefLoc = two.referenceSpan.getStart();
+                oneYieldToTwo = jumpStartRefLoc <= jumpLandingRefLoc == one.forwardStrand;
+            } else {
+                oneYieldToTwo = one.forwardStrand;
+            }
+        } else {
+            oneYieldToTwo = IntervalUtils.compareContigs(one.referenceSpan, two.referenceSpan, dictionary) > 0;
+        }
+        return oneYieldToTwo;
     }
 
     /**
