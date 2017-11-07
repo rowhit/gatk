@@ -56,6 +56,7 @@ public final class AS_RMSMappingQuality extends InfoFieldAnnotation implements A
     public Map<String, Object> annotate(final ReferenceContext ref,
                                         final VariantContext vc,
                                         final ReadLikelihoods<Allele> likelihoods) {
+        Utils.nonNull(vc);
         if ( likelihoods == null) {
             return Collections.emptyMap();
         }

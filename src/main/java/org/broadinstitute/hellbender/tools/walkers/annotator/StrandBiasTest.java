@@ -42,12 +42,12 @@ public abstract class StrandBiasTest extends InfoFieldAnnotation implements Anno
             }
         }
 
-        if (likelihoods!=null) {
+        if (likelihoods != null) {
             if (vc.isSNP() && !likelihoods.hasFilledLiklihoods() && (likelihoods.readCount() != 0)) {
                 return calculateAnnotationFromStratifiedContexts(likelihoods.getStratifiedPileups(vc), vc);
             }
 
-            if (likelihoods.hasFilledLiklihoods() && (likelihoods.readCount() != 0)) {
+            if (likelihoods.hasFilledLiklihoods()) {
                 return calculateAnnotationFromLikelihoods(likelihoods, vc);
             }
         }

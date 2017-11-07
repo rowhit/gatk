@@ -67,7 +67,6 @@ public abstract class RankSumTest extends InfoFieldAnnotation implements Annotat
                         }
                     }
                 }
-            //TODO some situations with mixed pileups and liklihoods will be broken
 
             // Use the pileup to stratify otherwise
             } else if (!(this instanceof AS_RankSumTest)) {

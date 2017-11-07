@@ -46,12 +46,19 @@ public final class DepthPerAlleleBySample extends GenotypeAnnotation implements 
         Utils.nonNull(gb, "gb is null");
         Utils.nonNull(vc, "vc is null");
 
-        if ( g == null || !g.isCalled() || likelihoods == null || likelihoods.readCount() == 0) {
+        if ( g == null || !g.isCalled() || likelihoods == null) {
             return;
         }
+        final Set<Allele> alleles = new LinkedHashSet<>(vc.getAlleles());
+
+        // make sure that there's a meaningful relationship between the alleles in the likelihoods and our VariantContext
+        Utils.validateArg(likelihoods.alleles().containsAll(alleles), () -> "VC alleles " + alleles + " not a  subset of ReadLikelihoods alleles " + likelihoods.alleles());
+
         int[] counts;
         if (likelihoods.hasFilledLiklihoods()) {
-            counts = annotateWithLiklihoods(vc, g, likelihoods);
+            counts = annotateWithLiklihoods(vc, g, alleles, likelihoods);
+        } else if (likelihoods.readCount()==0) {
+            return;
         } else if (vc.isSNP()) {
             counts = annotateWithPileup(vc, likelihoods.getStratifiedPileups(vc).get(g.getSampleName()));
         } else {
@@ -82,11 +89,7 @@ public final class DepthPerAlleleBySample extends GenotypeAnnotation implements 
         return counts;
     }
 
-    private int[] annotateWithLiklihoods(VariantContext vc, Genotype g, ReadLikelihoods<Allele> likelihoods) {
-        final Set<Allele> alleles = new LinkedHashSet<>(vc.getAlleles());
-
-        // make sure that there's a meaningful relationship between the alleles in the likelihoods and our VariantContext
-        Utils.validateArg(likelihoods.alleles().containsAll(alleles), () -> "VC alleles " + alleles + " not a  subset of ReadLikelihoods alleles " + likelihoods.alleles());
+    private int[] annotateWithLiklihoods(VariantContext vc, Genotype g, Set<Allele> alleles, ReadLikelihoods<Allele> likelihoods) {
 
         final Map<Allele, Integer> alleleCounts = new LinkedHashMap<>();
         for ( final Allele allele : vc.getAlleles() ) {

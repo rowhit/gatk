@@ -121,10 +121,11 @@ public final class RMSMappingQuality extends InfoFieldAnnotation implements Stan
 
 
     public void combineAttributeMap(ReducibleAnnotationData<Number> toAdd, ReducibleAnnotationData<Number> combined) {
-        if (combined.getAttribute(Allele.NO_CALL) != null)
+        if (combined.getAttribute(Allele.NO_CALL) != null) {
             combined.putAttribute(Allele.NO_CALL, (Double) combined.getAttribute(Allele.NO_CALL) + (Double) toAdd.getAttribute(Allele.NO_CALL));
-        else
+        } else {
             combined.putAttribute(Allele.NO_CALL, toAdd.getAttribute(Allele.NO_CALL));
+        }
 
     }
 
@@ -146,6 +147,7 @@ public final class RMSMappingQuality extends InfoFieldAnnotation implements Stan
     public Map<String, Object> annotate(final ReferenceContext ref,
                                         final VariantContext vc,
                                         final ReadLikelihoods<Allele> likelihoods) {
+        Utils.nonNull(vc);
         if (likelihoods == null || likelihoods.readCount() < 1 ) {
             return new HashMap<>();
         }

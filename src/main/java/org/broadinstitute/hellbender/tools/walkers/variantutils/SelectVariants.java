@@ -499,10 +499,8 @@ public final class SelectVariants extends VariantWalker {
             }
         }
 
-        VCFHeader outputHeader = new VCFHeader(actualLines, samples);
-        outputHeader.setSequenceDictionary(getMasterSequenceDictionary());
         vcfWriter = createVCFWriter(outFile);
-        vcfWriter.writeHeader(outputHeader);
+        vcfWriter.writeHeader(new VCFHeader(actualLines, samples));
     }
 
     @Override
