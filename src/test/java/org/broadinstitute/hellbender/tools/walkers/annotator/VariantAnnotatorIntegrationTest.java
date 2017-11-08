@@ -4,8 +4,7 @@ import htsjdk.samtools.seekablestream.SeekablePathStream;
 import htsjdk.tribble.readers.LineIterator;
 import htsjdk.tribble.readers.PositionalBufferedStream;
 import htsjdk.variant.variantcontext.VariantContext;
-import htsjdk.variant.vcf.VCFCodec;
-import htsjdk.variant.vcf.VCFHeader;
+import htsjdk.variant.vcf.*;
 import org.broadinstitute.hellbender.CommandLineProgramTest;
 import org.broadinstitute.hellbender.utils.Utils;
 import org.broadinstitute.hellbender.utils.runtime.ProcessController;
@@ -14,18 +13,17 @@ import org.broadinstitute.hellbender.utils.runtime.ProcessSettings;
 import org.broadinstitute.hellbender.utils.test.ArgumentsBuilder;
 import org.broadinstitute.hellbender.utils.test.IntegrationTestSpec;
 import org.broadinstitute.hellbender.utils.test.VariantContextTestUtils;
+import org.seqdoop.hadoop_bam.VCFFormat;
 import org.seqdoop.hadoop_bam.util.VCFHeaderReader;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import javax.validation.constraints.AssertFalse;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -34,6 +32,13 @@ public class VariantAnnotatorIntegrationTest extends CommandLineProgramTest {
     private static final List<String> ATTRIBUTES_TO_IGNORE = Arrays.asList(
             "QD",//TODO QD has a cap value and anything that reaches that is randomized.  It's difficult to reproduce the same random numbers across gatk3 -> 4
             "FS");//TODO There's some bug in either gatk3 or gatk4 fisherstrand that's making them not agree still, I'm not sure which is correct
+    private static final List<String> HEADER_LINES_TO_IGNROE = Arrays.asList(
+            "reference",
+            "HaplotypeScore",
+            "GATKCommandLine.VariantAnnotator",
+            "RAW_MQ"
+    );
+
 
     //TODO because of differences between how GATK3 and GATK4 handle capturing reads for spanning deletions (Namely 3 only looks for reads overlapping the first site, 4 gets all reads over the span)
     //TODO then we want ot ignore affected attributes for concordance tests
@@ -51,8 +56,11 @@ public class VariantAnnotatorIntegrationTest extends CommandLineProgramTest {
     //==================================================================================================================
     // Testing
     //==================================================================================================================
-
     private void assertVariantContextsMatch(File input, File expected, List<String> extraArgs, String reference) throws IOException {
+        assertVariantContextsMatch(input, expected, extraArgs,reference, ATTRIBUTES_TO_IGNORE);
+    }
+
+    private void assertVariantContextsMatch(File input, File expected, List<String> extraArgs, String reference, List<String> ignoreAtrributes) throws IOException {
         final VCFHeader header = getHeaderFromFile(expected);
 
         runVariantAnnotatorAndAssertSomething(input, expected, extraArgs, (a, e) -> {
@@ -60,13 +68,48 @@ public class VariantAnnotatorIntegrationTest extends CommandLineProgramTest {
         }, reference);
     }
 
+    //TODO if this gets generalized to another class this should be made more robust to differing number of header lines
+    private void assertHeadersMatch(File input, File expected, List<String> linesToIgnore) throws IOException {
+        final VCFHeader expectedHeader = getHeaderFromFile(expected);
+        final VCFHeader inputHeader = getHeaderFromFile(input);
+
+        Iterator<VCFHeaderLine> inputItr = inputHeader.getMetaDataInSortedOrder().iterator();
+        Iterator<VCFHeaderLine> expectedItr = expectedHeader.getMetaDataInSortedOrder().iterator();
+
+        while (inputItr.hasNext() && expectedItr.hasNext()) {
+            VCFHeaderLine expectedLine = expectedItr.next();
+            VCFHeaderLine inputLine = inputItr.next();
+            while (shouldFilterLine(inputLine, linesToIgnore)) {
+                inputLine = inputItr.hasNext()?inputItr.next():null;
+            }
+            while (shouldFilterLine(expectedLine, linesToIgnore)) {
+                expectedLine = expectedItr.hasNext()?expectedItr.next():null;
+            }
+            if ((inputLine == null || expectedLine==null) && expectedLine!=inputLine) {
+                Assert.fail("Files had a differing number of un-skipped lines");
+            } else {
+                Assert.assertEquals(inputLine, expectedLine);
+            }
+
+        }
+        Assert.assertFalse(inputItr.hasNext());
+        Assert.assertFalse(expectedItr.hasNext());
+    }
+
+    private boolean shouldFilterLine(VCFHeaderLine line, List<String> linesToIgnore) {
+        return (line != null)
+                && ((line instanceof VCFIDHeaderLine && linesToIgnore.contains(((VCFIDHeaderLine)line).getID()))
+                    || linesToIgnore.contains(line.getKey()));
+    }
+
     private void runVariantAnnotatorAndAssertSomething(File input, File expected, List<String> additionalArguments, BiConsumer<VariantContext, VariantContext> assertion, String reference) throws IOException {
         final File output = createTempFile("variantAnnotator", ".vcf");
 
         final ArgumentsBuilder args = new ArgumentsBuilder();
-        args.addReference(new File(reference))
-                .addOutput(output);
-        args.addArgument("V", input.getAbsolutePath());
+        if (reference!=null) {
+            args.addReference(new File(reference));
+        }
+        args.addOutput(output).addArgument("V", input.getAbsolutePath());
 
 
         // Handling a difference in syntax between GATK3 and GATK4 wrt. annotation groups
@@ -76,6 +119,7 @@ public class VariantAnnotatorIntegrationTest extends CommandLineProgramTest {
         Utils.resetRandomGenerator();
         runCommandLine(args);
 
+        assertHeadersMatch(output, expected, HEADER_LINES_TO_IGNROE);
         final List<VariantContext> expectedVC = getVariantContexts(expected);
         final List<VariantContext> actualVC = getVariantContexts(output);
         assertForEachElementInLists(actualVC, expectedVC, assertion);
@@ -189,53 +233,39 @@ public class VariantAnnotatorIntegrationTest extends CommandLineProgramTest {
     }
     @Test
     public void testOverwritingHeader() throws IOException {
-        IntegrationTestSpec spec = new IntegrationTestSpec(
-                baseTestString() + STANDARD_ANNOTATIONS + "--variant " + getToolTestDataDir() + "vcfexample4.vcf  -L 20:10,001,292",
-                Arrays.asList(getToolTestDataDir() + "expected/testReplaceHeader.vcf"));
-
-        spec.executeTest("test overwriting header", this);
+        assertVariantContextsMatch(getTestFile("vcfexample4.vcf"), getTestFile("expected/testReplaceHeader.vcf"), Arrays.asList("-G", "Standard", "-L", "20:10,001,292"), b37_reference_20_21);
     }
-
     @Test
     public void testNoReads() throws IOException {
-        IntegrationTestSpec spec = new IntegrationTestSpec(
-                baseTestString() + STANDARD_ANNOTATIONS + "--variant " + getToolTestDataDir() + "vcfexample3empty.vcf -L " + getToolTestDataDir() + "vcfexample3empty.vcf",
-                Arrays.asList(getToolTestDataDir() + "expected/" + "testNoReads.vcf"));
-        spec.executeTest("not passing it any reads", this);
+        assertVariantContextsMatch(getTestFile("vcfexample3empty.vcf"), getTestFile("expected/testNoReads.vcf"), Arrays.asList("-G", "Standard", "-L", getToolTestDataDir() + "vcfexample3empty.vcf"), b37_reference_20_21);
     }
-
     @Test
     public void testMultipleIdsWithDbsnp() throws IOException {
-        IntegrationTestSpec spec = new IntegrationTestSpec(
-                " -O %s --alwaysAppendDbsnpId --dbsnp " + dbsnp_138_b37_20_21_vcf + STANDARD_ANNOTATIONS + "--variant " + getToolTestDataDir() + "vcfdbsnpwithIDs.vcf -L " + getToolTestDataDir() + "vcfdbsnpwithIDs.vcf",
-                Arrays.asList(getToolTestDataDir() + "expected/testMultipleIdsWithDbsnp.vcf"));
-        spec.executeTest("adding multiple IDs with dbSNP", this);
+        assertVariantContextsMatch(getTestFile("vcfdbsnpwithIDs.vcf"), getTestFile("expected/testMultipleIdsWithDbsnp.vcf"), Arrays.asList("-G", "Standard", "-L",getToolTestDataDir() + "vcfdbsnpwithIDs.vcf", "--alwaysAppendDbsnpId", "--dbsnp", dbsnp_138_b37_20_21_vcf), null);
     }
-
     @Test
     public void testDBTagWithHapMap() throws IOException {
-        IntegrationTestSpec spec = new IntegrationTestSpec(
-                baseTestString() + " --comp H3:" + getToolTestDataDir() + "fakeHM3.vcf" + STANDARD_ANNOTATIONS + "--variant " + getToolTestDataDir() + "vcfexample3empty.vcf -L " + getToolTestDataDir() + "vcfexample3empty.vcf",
-                Arrays.asList(getToolTestDataDir() + "expected/testDBTagWithHapMap.vcf"));
-        spec.executeTest("getting DB tag with HM3", this);
+        assertVariantContextsMatch(getTestFile("vcfexample3empty.vcf"),
+                getTestFile("expected/testDBTagWithHapMap.vcf"),
+                Arrays.asList("-G", "Standard", "-L", getToolTestDataDir() + "vcfexample3empty.vcf", "--comp", "H3:" + getToolTestDataDir() + "fakeHM3.vcf"),
+                b37_reference_20_21, Collections.emptyList());
     }
 
     @Test
     public void testDBTagWithTwoComps() throws IOException {
-        IntegrationTestSpec spec = new IntegrationTestSpec(
-                baseTestString() + " --comp H3:" + getToolTestDataDir() + "fakeHM3.vcf --comp foo:" + getToolTestDataDir() + "fakeHM3.vcf " + STANDARD_ANNOTATIONS + " --variant " + getToolTestDataDir() + "vcfexample3empty.vcf -L " + getToolTestDataDir() + "vcfexample3empty.vcf",
-                Arrays.asList(getToolTestDataDir() + "expected/testDBTagWithTwoComps.vcf"));
-        spec.executeTest("getting DB tag with 2 comps", this);
+        assertVariantContextsMatch(getTestFile("vcfexample3empty.vcf"),
+                getTestFile("expected/testDBTagWithTwoComps.vcf"),
+                Arrays.asList("-G", "Standard", "-L", getToolTestDataDir() + "vcfexample3empty.vcf", "--comp", "H3:" + getToolTestDataDir() + "fakeHM3.vcf", "--comp", "foo:" + getToolTestDataDir() + "fakeHM3.vcf"),
+                b37_reference_20_21, Collections.emptyList());
     }
 
     @Test
     public void testNoQuals() throws IOException {
         // NOTE, this test is asserting that the QD calculation is dependant on existing QUAL field, the values themselves are subject to random jitter
-        Utils.resetRandomGenerator();
-        IntegrationTestSpec spec = new IntegrationTestSpec(
-                baseTestString() + " --variant " + getToolTestDataDir() + "noQual.vcf -I "+NA12878_20_21_WGS_bam+" -L " + getToolTestDataDir() + "noQual.vcf -A QualByDepth",
-                Arrays.asList(getToolTestDataDir() + "expected/noQual.vcf"));
-        spec.executeTest("test file doesn't have QUALs", this);
+        assertVariantContextsMatch(getTestFile("noQual.vcf"),
+                getTestFile("expected/noQual.vcf"),
+                Arrays.asList( "-L", getToolTestDataDir() + "noQual.vcf", "-I", NA12878_20_21_WGS_bam, "-A", "QualByDepth"),
+                b37_reference_20_21, Collections.emptyList());
     }
 
     @Test
@@ -256,30 +286,27 @@ public class VariantAnnotatorIntegrationTest extends CommandLineProgramTest {
 
     @Test
     public void testUsingExpressionMultiAllele() throws IOException {
-        IntegrationTestSpec spec = new IntegrationTestSpec(
-                baseTestString() + " --resource foo:" + getToolTestDataDir() + "targetAnnotations-multiAllele.vcf" + STANDARD_ANNOTATIONS + "--variant " + getToolTestDataDir() + "vcfexample3empty-multiAllele.vcf -E foo.AF -E foo.AC -L " + getToolTestDataDir() + "vcfexample3empty-multiAllele.vcf",
-                Arrays.asList(getToolTestDataDir() + "expected/testUsingExpressionMultiAllele.vcf"));
-
-        spec.executeTest("ExpressionTestt--" + testFile, this);
+        assertVariantContextsMatch(getTestFile("vcfexample3empty-multiAllele.vcf"),
+                getTestFile("expected/testUsingExpressionMultiAllele.vcf"),
+                Arrays.asList("-G", "Standard", "-L", getToolTestDataDir() + "vcfexample3empty-multiAllele.vcf", "--resource", "foo:" + getToolTestDataDir() + "targetAnnotations-multiAllele.vcf", "-E", "foo.AF", "-E", "foo.AC"),
+                b37_reference_20_21, Collections.emptyList());
     }
 
     @Test
     public void testFilterInExpression() throws IOException {
         /* The order of filters in the output seems platform-dependent. May need to change htsjdk to make the order consistent across platforms. [Sato] */
-        IntegrationTestSpec spec = new IntegrationTestSpec(
-                baseTestString() + " --resource foo:" + getToolTestDataDir() + "annotationResourceWithFilter.vcf" + STANDARD_ANNOTATIONS + "--variant " + getToolTestDataDir() + "vcfexample3empty-multiAllele.vcf -E foo.FILTER -L " + getToolTestDataDir() + "vcfexample3empty-multiAllele.vcf",
-                Arrays.asList(getToolTestDataDir() + "expected/testFilterInExpression.vcf"));
-
-        spec.executeTest("ExpressionTestt--" + testFile, this);
+        assertVariantContextsMatch(getTestFile("vcfexample3empty-multiAllele.vcf"),
+                getTestFile("expected/testFilterInExpression.vcf"),
+                Arrays.asList("-G", "Standard", "-L", getToolTestDataDir() + "vcfexample3empty-multiAllele.vcf", "--resource", "foo:" + getToolTestDataDir() + "annotationResourceWithFilter.vcf", "-E", "foo.FILTER"),
+                b37_reference_20_21, Collections.emptyList());
     }
 
     @Test
     public void testUsingExpressionWithID() throws IOException {
-        IntegrationTestSpec spec = new IntegrationTestSpec(
-                baseTestString() + " --resource foo:" + getToolTestDataDir() + "targetAnnotations.vcf" + STANDARD_ANNOTATIONS + "--variant " + getToolTestDataDir() + "vcfexample3empty.vcf -E foo.ID -L " + getToolTestDataDir() + "vcfexample3empty.vcf",
-                Arrays.asList(getToolTestDataDir() + "expected/testUsingExpressionWithID.vcf"));
-
-        spec.executeTest("ExpressionTestt--" + testFile, this);
+        assertVariantContextsMatch(getTestFile("vcfexample3empty.vcf"),
+                getTestFile("expected/testUsingExpressionWithID.vcf"),
+                Arrays.asList("-G", "Standard", "-L", getToolTestDataDir() + "vcfexample3empty.vcf", "--resource", "foo:" + getToolTestDataDir() + "targetAnnotations.vcf", "-E", "foo.ID"),
+                b37_reference_20_21, Collections.emptyList());
     }
 
 //
@@ -308,11 +335,10 @@ public class VariantAnnotatorIntegrationTest extends CommandLineProgramTest {
     @Test
     public void testAlleleTrimming() throws IOException {
         // This test makes sure that the expression code works in a complex case with many overlapping variant contexts
-        IntegrationTestSpec spec = new IntegrationTestSpec(
-                "-O %s -A InbreedingCoeff --variant " + getToolTestDataDir() + "alleleTrim.vcf" +
-                        " --resource exac:" + getToolTestDataDir() +  "exacAlleleTrim.vcf  -E exac.AC_Adj",
-                Arrays.asList(getToolTestDataDir() + "expected/testAlleleTrimming.vcf"));
-        spec.executeTest("Testing allele trimming annotation", this);
+        assertVariantContextsMatch(getTestFile("alleleTrim.vcf"),
+                getTestFile("expected/testAlleleTrimming.vcf"),
+                Arrays.asList( "--resource", "exac:" + getToolTestDataDir() + "exacAlleleTrim.vcf", "-E", "exac.AC_Adj", "-A", "InbreedingCoeff"),
+                null, Collections.emptyList());
     }
 
     @Test
