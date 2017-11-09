@@ -335,7 +335,7 @@ public class VariantAnnotatorIntegrationTest extends CommandLineProgramTest {
     @Test
     public void testAlleleTrimming() throws IOException {
         // This test makes sure that the expression code works in a complex case with many overlapping variant contexts
-        assertVariantContextsMatch(getTestFile("alleleTrim.vcf"),
+        assertVariantContextsMatch(getTestFile("AlleleTrim.vcf"),
                 getTestFile("expected/testAlleleTrimming.vcf"),
                 Arrays.asList( "--resource", "exac:" + getToolTestDataDir() + "exacAlleleTrim.vcf", "-E", "exac.AC_Adj", "-A", "InbreedingCoeff"),
                 null, Collections.emptyList());
