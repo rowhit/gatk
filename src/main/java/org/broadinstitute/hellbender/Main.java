@@ -11,6 +11,7 @@ import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
 import org.broadinstitute.hellbender.cmdline.CommandLineProgram;
 import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.utils.ClassUtils;
+import org.broadinstitute.hellbender.utils.runtime.RuntimeUtils;
 import org.broadinstitute.hellbender.utils.Utils;
 
 import java.io.PrintStream;
@@ -318,7 +319,7 @@ public class Main {
 
         @Override
         public int compare(final Class<?> aClass, final Class<?> bClass) {
-            return aClass.getSimpleName().compareTo(bClass.getSimpleName());
+            return RuntimeUtils.toolDisplayName(aClass).compareTo(RuntimeUtils.toolDisplayName(bClass));
         }
     }
 
@@ -379,10 +380,11 @@ public class Main {
                         betaFeature == null ?
                                 String.format("%s%s", CYAN, property.oneLineSummary()) :
                                 String.format("%s%s %s%s", RED, "(BETA Tool)", CYAN, property.oneLineSummary());
+                final String annotatedToolName = RuntimeUtils.toolDisplayName(clazz);
                 if (clazz.getSimpleName().length() >= 45) {
-                    builder.append(String.format("%s    %s    %s%s\n", GREEN, clazz.getSimpleName(), summaryLine, KNRM));
+                    builder.append(String.format("%s    %s    %s%s\n", GREEN, annotatedToolName, summaryLine, KNRM));
                 } else {
-                    builder.append(String.format("%s    %-45s%s%s\n", GREEN, clazz.getSimpleName(), summaryLine, KNRM));
+                    builder.append(String.format("%s    %-45s%s%s\n", GREEN, annotatedToolName, summaryLine, KNRM));
                 }
             }
             builder.append(String.format("\n"));

@@ -90,11 +90,11 @@ public final class HelpConstants {
             groupToSuperCategory.put(DOC_CAT_SPARK, DOC_SUPERCAT_TOOLS);
             groupToSuperCategory.put(DOC_CAT_SPARK_PIPELINE, DOC_SUPERCAT_TOOLS);
             groupToSuperCategory.put(DOC_CAT_SPARK_SV, DOC_SUPERCAT_TOOLS);
-            groupToSuperCategory.put(DOC_CAT_FASTA, DOC_SUPERCAT_TOOLS);
-            groupToSuperCategory.put(DOC_CAT_READS, DOC_SUPERCAT_TOOLS);
+            groupToSuperCategory.put(new picard.cmdline.programgroups.Fasta().getName(), DOC_SUPERCAT_TOOLS);
+            groupToSuperCategory.put(new picard.cmdline.programgroups.SamOrBam().getName(), DOC_SUPERCAT_TOOLS);
             groupToSuperCategory.put(DOC_CAT_QC, DOC_SUPERCAT_TOOLS);
             groupToSuperCategory.put(DOC_CAT_CNV, DOC_SUPERCAT_TOOLS);
-            groupToSuperCategory.put(DOC_CAT_VARIANT, DOC_SUPERCAT_TOOLS);
+            groupToSuperCategory.put(new picard.cmdline.programgroups.VcfOrBcf().getName(), DOC_SUPERCAT_TOOLS);
 
             // supercat Utilities
             groupToSuperCategory.put(DOC_CAT_READFILTERS, DOC_SUPERCAT_UTILITIES);
