@@ -1,5 +1,7 @@
 package org.broadinstitute.hellbender.utils.help;
 
+import org.broadinstitute.hellbender.cmdline.programgroups.ReadProgramGroup;
+import org.broadinstitute.hellbender.cmdline.programgroups.VariantProgramGroup;
 import org.broadinstitute.hellbender.utils.Utils;
 
 import java.util.HashMap;
@@ -91,10 +93,10 @@ public final class HelpConstants {
             groupToSuperCategory.put(DOC_CAT_SPARK_PIPELINE, DOC_SUPERCAT_TOOLS);
             groupToSuperCategory.put(DOC_CAT_SPARK_SV, DOC_SUPERCAT_TOOLS);
             groupToSuperCategory.put(new picard.cmdline.programgroups.Fasta().getName(), DOC_SUPERCAT_TOOLS);
-            groupToSuperCategory.put(new picard.cmdline.programgroups.SamOrBam().getName(), DOC_SUPERCAT_TOOLS);
+            groupToSuperCategory.put(new ReadProgramGroup().getName(), DOC_SUPERCAT_TOOLS);
             groupToSuperCategory.put(DOC_CAT_QC, DOC_SUPERCAT_TOOLS);
             groupToSuperCategory.put(DOC_CAT_CNV, DOC_SUPERCAT_TOOLS);
-            groupToSuperCategory.put(new picard.cmdline.programgroups.VcfOrBcf().getName(), DOC_SUPERCAT_TOOLS);
+            groupToSuperCategory.put(new VariantProgramGroup().getName(), DOC_SUPERCAT_TOOLS);
 
             // supercat Utilities
             groupToSuperCategory.put(DOC_CAT_READFILTERS, DOC_SUPERCAT_UTILITIES);

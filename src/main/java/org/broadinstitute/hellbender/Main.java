@@ -247,7 +247,7 @@ public class Main {
     /**
      * Returns the command line program specified, or prints the usage and exits with exit code 1 *
      */
-    private static CommandLineProgram extractCommandLineProgram(final String[] args, final List<String> packageList, final List<Class<? extends CommandLineProgram>> classList, final String commandLineName) {
+    private CommandLineProgram extractCommandLineProgram(final String[] args, final List<String> packageList, final List<Class<? extends CommandLineProgram>> classList, final String commandLineName) {
 
         /** Get the set of classes that are our command line programs **/
         final ClassFinder classFinder = new ClassFinder();
@@ -323,7 +323,7 @@ public class Main {
         }
     }
 
-    private static void printUsage(final Set<Class<?>> classes, final String commandLineName) {
+    private void printUsage(final Set<Class<?>> classes, final String commandLineName) {
         final StringBuilder builder = new StringBuilder();
         builder.append(BOLDRED + "USAGE: " + commandLineName + " " + GREEN + "<program name>" + BOLDRED + " [-h]\n\n" + KNRM)
                 .append(BOLDRED + "Available Programs:\n" + KNRM);
@@ -380,7 +380,7 @@ public class Main {
                         betaFeature == null ?
                                 String.format("%s%s", CYAN, property.oneLineSummary()) :
                                 String.format("%s%s %s%s", RED, "(BETA Tool)", CYAN, property.oneLineSummary());
-                final String annotatedToolName = RuntimeUtils.toolDisplayName(clazz);
+                final String annotatedToolName = getDisplayNameForToolClass(clazz);
                 if (clazz.getSimpleName().length() >= 45) {
                     builder.append(String.format("%s    %s    %s%s\n", GREEN, annotatedToolName, summaryLine, KNRM));
                 } else {
@@ -391,6 +391,13 @@ public class Main {
         }
         builder.append(WHITE + "--------------------------------------------------------------------------------------\n" + KNRM);
         System.err.println(builder.toString());
+    }
+
+    /**
+     * @return A display name to be used for the tool who's class is {@code clazz}.
+     */
+    protected String getDisplayNameForToolClass(Class<?> clazz) {
+        return RuntimeUtils.toolDisplayName(clazz);
     }
 
     /**

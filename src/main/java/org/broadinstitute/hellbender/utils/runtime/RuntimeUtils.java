@@ -42,10 +42,10 @@ public final class RuntimeUtils {
      */
     public static String toolDisplayName(final Class<?> toolClass) {
         Utils.nonNull(toolClass, "A valid class is required to get a display name");
-        final String picardCommandLineClass = "picard.";
-        final String picardToolSuffix = " (Picard)";
 
-        return toolClass.getCanonicalName().contains(picardCommandLineClass) ?
+        final String picardToolSuffix = " (Picard)";
+        final Class<?> picardCommandLineProgramClass = picard.cmdline.CommandLineProgram.class;
+        return picardCommandLineProgramClass.isAssignableFrom(toolClass) ?
                 toolClass.getSimpleName() + picardToolSuffix :
                 toolClass.getSimpleName();
     }
